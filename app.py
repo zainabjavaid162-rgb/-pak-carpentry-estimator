@@ -101,9 +101,9 @@ SEED_ITEMS = [
     {"urdu": "3D قبضہ فل راؤنڈ", "english": "3D Full Overlay Hydraulic Soft-Close Cabinet Hinges", "category": "Hardware & Hinges", "area": "Hardware", "qty": 30, "unit": "Pcs", "rate": 300, "slip": "Slip 2"},
 ]
 
-# Initialize Session State
-if "items" not in st.session_state:
-    st.session_state.items = SEED_ITEMS.copy()
+# Initialize Session State using safe dictionary key
+if "materials_data" not in st.session_state:
+    st.session_state["materials_data"] = [dict(item) for item in SEED_ITEMS]
 
 # Sidebar: Controls & Settings
 with st.sidebar:
@@ -124,12 +124,12 @@ with st.sidebar:
     
     st.subheader("🔄 Quick Actions")
     if st.button("Reset to Default 41 Items"):
-        st.session_state.items = SEED_ITEMS.copy()
+        st.session_state["materials_data"] = [dict(item) for item in SEED_ITEMS]
         st.success("Reset successfully!")
         st.rerun()
         
     if st.button("Clear All Items"):
-        st.session_state.items = []
+        st.session_state["materials_data"] = []
         st.warning("All items cleared!")
         st.rerun()
 
@@ -137,20 +137,20 @@ with st.sidebar:
 st.title("🪵 Pakistani Woodwork, PVC & Hardware AI Estimator")
 st.markdown("### لکڑی، پی وی سی، الماری اور ہارڈویئر کا مکمل تخمینہ لاگت")
 
-# Calculate Totals & Stats
-items_df = pd.DataFrame(st.session_state.items)
-
-if not items_df.empty:
-    # Apply margin if any
+# Calculate Totals & Stats safely
+raw_data = st.session_state.get("materials_data", [])
+if raw_data:
+    items_df = pd.DataFrame([dict(x) for x in raw_data])
     items_df["adjusted_rate"] = items_df["rate"].apply(lambda r: int(r * (1 + margin_pct / 100)))
     items_df["total_amount"] = items_df["qty"] * items_df["adjusted_rate"]
     
-    grand_total = items_df["total_amount"].sum()
+    grand_total = int(items_df["total_amount"].sum())
     total_items = len(items_df)
-    total_sheets = items_df[items_df["category"] == "Sheets & Boards"]["qty"].sum()
-    hardware_cost = items_df[items_df["category"].isin(["Hardware & Hinges", "Screws & Fasteners", "Nails & Pins", "Adhesives & Tapes"])]["total_amount"].sum()
-    sheets_cost = items_df[items_df["category"] == "Sheets & Boards"]["total_amount"].sum()
+    total_sheets = int(items_df[items_df["category"] == "Sheets & Boards"]["qty"].sum())
+    hardware_cost = int(items_df[items_df["category"].isin(["Hardware & Hinges", "Screws & Fasteners", "Nails & Pins", "Adhesives & Tapes"])]["total_amount"].sum())
+    sheets_cost = int(items_df[items_df["category"] == "Sheets & Boards"]["total_amount"].sum())
 else:
+    items_df = pd.DataFrame(columns=["urdu", "english", "category", "area", "qty", "unit", "rate", "slip", "adjusted_rate", "total_amount"])
     grand_total = 0
     total_items = 0
     total_sheets = 0
@@ -180,19 +180,21 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # -------------------------------------------------------------
 with tab1:
     st.subheader("Interactive Bill & Line Item Editor")
-    st.caption("You can directly edit quantities, rates, and descriptions in the table below:")
+    st.caption("You can directly view and filter line items in the table below:")
     
     if not items_df.empty:
         # Filter options
         col_f1, col_f2 = st.columns([1, 1])
         with col_f1:
-            area_filter = st.multiselect("Filter by Area / Room", options=list(items_df["area"].unique()), default=list(items_df["area"].unique()))
+            area_opts = sorted(list(items_df["area"].unique()))
+            area_filter = st.multiselect("Filter by Area / Room", options=area_opts, default=area_opts)
         with col_f2:
-            cat_filter = st.multiselect("Filter by Category", options=list(items_df["category"].unique()), default=list(items_df["category"].unique()))
+            cat_opts = sorted(list(items_df["category"].unique()))
+            cat_filter = st.multiselect("Filter by Category", options=cat_opts, default=cat_opts)
             
         filtered_df = items_df[items_df["area"].isin(area_filter) & items_df["category"].isin(cat_filter)].copy()
         
-        # Display editable table
+        # Display table
         display_cols = ["urdu", "english", "area", "category", "qty", "unit", "adjusted_rate", "total_amount"]
         rename_dict = {
             "urdu": "Urdu Text (اصل تحریر)",
@@ -240,7 +242,7 @@ with tab2:
             if pasted_text.strip():
                 new_items = parse_slip_text(pasted_text)
                 for item in new_items:
-                    st.session_state.items.append(item)
+                    st.session_state["materials_data"].append(dict(item))
                 st.success(f"Successfully added {len(new_items)} items from Urdu text!")
                 st.rerun()
             else:
@@ -259,9 +261,9 @@ with tab2:
             
             submitted = st.form_submit_button("Add Item to Bill")
             if submitted:
-                st.session_state.items.append({
+                st.session_state["materials_data"].append({
                     "urdu": c_urdu if c_urdu else c_eng,
-                    "english": c_eng if c_eng else c_urdu,
+                    "english": c_eng if c_urdu else c_urdu,
                     "area": c_area,
                     "category": c_cat,
                     "qty": c_qty,
@@ -282,7 +284,6 @@ with tab3:
         chart_col1, chart_col2 = st.columns(2)
         
         with chart_col1:
-            # Area-wise Breakdown
             area_summary = items_df.groupby("area")["total_amount"].sum().reset_index()
             fig_area = px.pie(
                 area_summary,
@@ -295,7 +296,6 @@ with tab3:
             st.plotly_chart(fig_area, use_container_width=True)
             
         with chart_col2:
-            # Category-wise Breakdown
             cat_summary = items_df.groupby("category")["total_amount"].sum().reset_index().sort_values("total_amount", ascending=False)
             fig_cat = px.bar(
                 cat_summary,
@@ -353,7 +353,8 @@ with tab5:
         st.markdown("#### 📗 Excel Spreadsheet Export (`.xlsx`)")
         st.caption("Generates dynamic Excel workbook with formulas, styled borders, and bilingual columns.")
         
-        excel_data = generate_excel_bytes(st.session_state.items, project_name=project_title, client_name=client_name)
+        current_materials = st.session_state.get("materials_data", [])
+        excel_data = generate_excel_bytes(current_materials, project_name=project_title, client_name=client_name)
         
         st.download_button(
             label="📥 Download Excel Estimate (.xlsx)",
@@ -377,7 +378,6 @@ with tab5:
     st.divider()
     st.markdown("#### 🖨️ Printable Quotation Preview")
     
-    # HTML Invoice Card
     preview_html = f"""
     <div style="background: #ffffff; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #1e3a8a; padding-bottom: 12px;">
@@ -387,7 +387,7 @@ with tab5:
             </div>
             <div style="text-align: right;">
                 <h3 style="margin: 0; color: #15803d;">Total: ₨ {grand_total:,.0f}</h3>
-                <span style="font-size: 12px; color: #64748b;">{len(st.session_state.items)} Items</span>
+                <span style="font-size: 12px; color: #64748b;">{len(raw_data)} Items</span>
             </div>
         </div>
     </div>
