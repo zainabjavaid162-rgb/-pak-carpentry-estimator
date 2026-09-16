@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pak Carpentry & Woodwork AI Estimator - Web App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .urdu { font-family: 'Noto Nastaliq Urdu', 'Segoe UI', serif; direction: rtl; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <span class="text-3xl">🪵</span>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Pak Carpentry & Woodwork Estimator</h1>
+                    <p class="text-xs text-blue-200">Islamabad & Rawalpindi Market Rates | Bilingual Estimator & Billing App</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="exportCSV()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition shadow flex items-center gap-1.5">
+                    📥 Export CSV
+                </button>
+                <button onclick="window.print()" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition shadow flex items-center gap-1.5">
+                    🖨️ Print Bill
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
+
+        <!-- Metrics Dashboard -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+                <div class="text-xs font-bold uppercase text-slate-400">Total Project Cost</div>
+                <div id="metric-grand-total" class="text-2xl font-bold text-emerald-600 mt-1">₨ 0</div>
+                <div class="text-xs text-slate-500 mt-1">Wholesale rate estimate</div>
+            </div>
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+                <div class="text-xs font-bold uppercase text-slate-400">Total Line Items</div>
+                <div id="metric-total-items" class="text-2xl font-bold text-slate-800 mt-1">0</div>
+                <div class="text-xs text-slate-500 mt-1">Across all categories</div>
+            </div>
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+                <div class="text-xs font-bold uppercase text-slate-400">Sheets & Boards Cost</div>
+                <div id="metric-sheets-cost" class="text-2xl font-bold text-blue-700 mt-1">₨ 0</div>
+                <div class="text-xs text-slate-500 mt-1">PVC, UV, Formica</div>
+            </div>
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+                <div class="text-xs font-bold uppercase text-slate-400">Hardware & Fasteners</div>
+                <div id="metric-hw-cost" class="text-2xl font-bold text-indigo-700 mt-1">₨ 0</div>
+                <div class="text-xs text-slate-500 mt-1">Screws, Hinges, Adhesives</div>
+            </div>
+        </div>
+
+        <!-- Controls & Filters -->
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
+            <div class="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+                <input id="search-input" onkeyup="filterItems()" type="text" placeholder="🔍 Search item by Urdu or English..." class="bg-slate-50 border border-slate-300 text-sm rounded-lg px-3 py-2 w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select id="area-select" onchange="filterItems()" class="bg-slate-50 border border-slate-300 text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="ALL">All Areas / Rooms</option>
+                    <option value="Bedroom">Bedroom</option>
+                    <option value="Washroom">Washroom</option>
+                    <option value="Kitchen">Kitchen</option>
+                    <option value="Hardware">Hardware & Screws</option>
+                    <option value="Finishing">Finishing & Trims</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition shadow flex items-center gap-1">
+                    ➕ Add Custom Item
+                </button>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-slate-900 text-white text-xs uppercase tracking-wider">
+                            <th class="py-3 px-4 text-center w-12">#</th>
+                            <th class="py-3 px-4 text-right urdu">اصل تحریر (Urdu)</th>
+                            <th class="py-3 px-4">English Description & Spec</th>
+                            <th class="py-3 px-4 text-center">Area</th>
+                            <th class="py-3 px-4 text-center">Category</th>
+                            <th class="py-3 px-4 text-center">Quantity</th>
+                            <th class="py-3 px-4 text-center">Unit</th>
+                            <th class="py-3 px-4 text-right">Rate (PKR)</th>
+                            <th class="py-3 px-4 text-right">Total (PKR)</th>
+                            <th class="py-3 px-4 text-center w-16">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y divide-slate-200">
+                        <!-- Filled by JS -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-slate-900 text-white font-bold text-sm">
+                            <td colspan="8" class="py-4 px-4 text-right">PROJECT GRAND TOTAL (کل پروجیکٹ تخمینہ لاگت):</td>
+                            <td id="table-grand-total" class="py-4 px-4 text-right text-emerald-400 font-extrabold text-base">₨ 0</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modal for adding new item -->
+    <div id="item-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-lg font-bold text-slate-900">Add New Line Item</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+            <div class="space-y-3 text-sm">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Urdu Item Name</label>
+                    <input id="modal-urdu" type="text" placeholder="مثلاً: ہائی گلوس شیٹ" class="w-full border rounded-lg p-2.5 bg-slate-50 focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">English Name / Spec</label>
+                    <input id="modal-eng" type="text" placeholder="e.g. UV High Gloss Shutter Board" class="w-full border rounded-lg p-2.5 bg-slate-50 focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Area / Room</label>
+                        <select id="modal-area" class="w-full border rounded-lg p-2.5 bg-slate-50">
+                            <option value="Bedroom">Bedroom</option>
+                            <option value="Washroom">Washroom</option>
+                            <option value="Kitchen">Kitchen</option>
+                            <option value="Hardware">Hardware</option>
+                            <option value="Finishing">Finishing</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Category</label>
+                        <select id="modal-cat" class="w-full border rounded-lg p-2.5 bg-slate-50">
+                            <option value="Sheets & Boards">Sheets & Boards</option>
+                            <option value="Trims & Lipping">Trims & Lipping</option>
+                            <option value="Screws & Fasteners">Screws & Fasteners</option>
+                            <option value="Nails & Pins">Nails & Pins</option>
+                            <option value="Hardware & Hinges">Hardware & Hinges</option>
+                            <option value="Adhesives & Tapes">Adhesives & Tapes</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Qty</label>
+                        <input id="modal-qty" type="number" min="1" value="1" class="w-full border rounded-lg p-2.5 bg-slate-50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Unit</label>
+                        <select id="modal-unit" class="w-full border rounded-lg p-2.5 bg-slate-50">
+                            <option value="Sheets">Sheets</option>
+                            <option value="Pcs">Pcs</option>
+                            <option value="Strips">Strips</option>
+                            <option value="Boxes">Boxes</option>
+                            <option value="Packets">Packets</option>
+                            <option value="Meters">Meters</option>
+                            <option value="Tins">Tins</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Rate (PKR)</label>
+                        <input id="modal-rate" type="number" min="0" value="1000" step="50" class="w-full border rounded-lg p-2.5 bg-slate-50">
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2 border-t">
+                <button onclick="closeModal()" class="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 text-sm font-semibold">Cancel</button>
+                <button onclick="addItemFromModal()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold">Add Item</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Script -->
+    <script>
+        let items = [
+            {"urdu": "شیٹ شٹر الماری", "english": "Wardrobe Shutter Sheets (Laminated Board / Super Gloss)", "category": "Sheets & Boards", "area": "Bedroom", "qty": 8, "unit": "Sheets", "rate": 4800},
+            {"urdu": "لامینیشن", "english": "Lamination / Formica Inner Sheets", "category": "Sheets & Boards", "area": "Bedroom", "qty": 6, "unit": "Sheets", "rate": 2600},
+            {"urdu": "2 سوتر PVC", "english": "2 Suter (6mm) PVC Moisture Barrier Backing", "category": "Sheets & Boards", "area": "Bedroom", "qty": 8, "unit": "Sheets", "rate": 3200},
+            {"urdu": "پریس ڈور", "english": "Pressed Door / Finished Wardrobe Shutter Panel", "category": "Sheets & Boards", "area": "Bedroom", "qty": 1, "unit": "Pcs", "rate": 2000},
+            {"urdu": "لہر 30x60", "english": "PVC Edge Banding / Lipping Strips (30x60)", "category": "Trims & Lipping", "area": "Bedroom", "qty": 20, "unit": "Strips", "rate": 180},
+            {"urdu": "واش روم 3/4 PVC کلو", "english": "3/4\" (18mm) Heavy Density Waterproof PVC Foam Board", "category": "Sheets & Boards", "area": "Washroom", "qty": 8, "unit": "Sheets", "rate": 7800},
+            {"urdu": "الماری شٹر لامینیشن", "english": "Washroom Vanity Shutter Lamination Sheet", "category": "Sheets & Boards", "area": "Washroom", "qty": 4, "unit": "Sheets", "rate": 2800},
+            {"urdu": "2 سوتر PVC", "english": "2 Suter (6mm) Waterproof PVC Backing Sheet", "category": "Sheets & Boards", "area": "Washroom", "qty": 5, "unit": "Sheets", "rate": 3200},
+            {"urdu": "لہر 30x60", "english": "PVC Edge Banding / Lipping Strips (30x60)", "category": "Trims & Lipping", "area": "Washroom", "qty": 20, "unit": "Strips", "rate": 180},
+            {"urdu": "قبضہ 7\"", "english": "Concealed Soft-Close Cabinet Hinges 7\"", "category": "Hardware & Hinges", "area": "Washroom", "qty": 40, "unit": "Pcs", "rate": 220},
+            {"urdu": "پریس ڈور", "english": "Washroom Press Doors / Vanity Shutters", "category": "Sheets & Boards", "area": "Washroom", "qty": 2, "unit": "Pcs", "rate": 2000},
+            {"urdu": "واش روم شیٹر / شٹر", "english": "Washroom Pre-cut Shutters / Board Panels", "category": "Sheets & Boards", "area": "Washroom", "qty": 27, "unit": "Pcs", "rate": 1500},
+            {"urdu": "کچن 3/4 PVC کلو (UV شیٹ 8 عدد)", "english": "Kitchen 3/4\" (18mm) PVC Board / UV High Gloss Sheet", "category": "Sheets & Boards", "area": "Kitchen", "qty": 8, "unit": "Sheets", "rate": 7500},
+            {"urdu": "2 سوتر Back PVC", "english": "Kitchen Backing 2 Suter (6mm) PVC Sheets", "category": "Sheets & Boards", "area": "Kitchen", "qty": 4, "unit": "Sheets", "rate": 3200},
+            {"urdu": "شٹر کچن الماری", "english": "Kitchen Cabinet Shutter Panels", "category": "Sheets & Boards", "area": "Kitchen", "qty": 9, "unit": "Sheets", "rate": 4800},
+            {"urdu": "پریس ڈور", "english": "Kitchen Press Door Shutters", "category": "Sheets & Boards", "area": "Kitchen", "qty": 9, "unit": "Pcs", "rate": 2000},
+            {"urdu": "کچن PVC گولا 16mm", "english": "Kitchen PVC Gola / Aluminum J-Profile Trim (16mm)", "category": "Trims & Lipping", "area": "Kitchen", "qty": 20, "unit": "Pcs", "rate": 320},
+            {"urdu": "سیٹ تالو / چینل 3", "english": "3-Lever Drawer Lock Set / Telescopic Channels", "category": "Hardware & Hinges", "area": "Hardware", "qty": 3, "unit": "Sets", "rate": 650},
+            {"urdu": "لہر 27x60", "english": "PVC Edge Banding / Lipping Strips (27x60)", "category": "Trims & Lipping", "area": "Finishing", "qty": 102, "unit": "Strips", "rate": 160},
+            {"urdu": "کاؤنٹر گولا / واش روم گولا", "english": "Countertop / Washroom PVC Edge Molding (Gola)", "category": "Trims & Lipping", "area": "Finishing", "qty": 20, "unit": "Meters", "rate": 250},
+            {"urdu": "کیل پٹھے 8x11x1.5", "english": "Hardened Wood & Framing Nails (1.5\")", "category": "Nails & Pins", "area": "Hardware", "qty": 4, "unit": "Boxes", "rate": 450},
+            {"urdu": "2 سوتر PVC 27", "english": "2 Suter (6mm) PVC Sheets (Size 27)", "category": "Sheets & Boards", "area": "Finishing", "qty": 6, "unit": "Sheets", "rate": 3200},
+            {"urdu": "کیل چھتری چپی 1.5x1/2", "english": "Umbrella Head Nails / Cap Screws (1.5\" x 1/2\")", "category": "Screws & Fasteners", "area": "Hardware", "qty": 70, "unit": "Packets", "rate": 180},
+            {"urdu": "کالے سکرو 3/4 x 6", "english": "Black Gypsum / Countersunk Wood Screws (6 x 3/4\")", "category": "Screws & Fasteners", "area": "Hardware", "qty": 6, "unit": "Packets", "rate": 250},
+            {"urdu": "کالے سکرو 5/8 x 6", "english": "Black Countersunk Wood Screws (6 x 5/8\")", "category": "Screws & Fasteners", "area": "Hardware", "qty": 6, "unit": "Packets", "rate": 240},
+            {"urdu": "کالے سکرو 1/2 x 6", "english": "Black Countersunk Wood Screws (6 x 1/2\")", "category": "Screws & Fasteners", "area": "Hardware", "qty": 6, "unit": "Packets", "rate": 220},
+            {"urdu": "کالے سکرو 2\"", "english": "Heavy Duty Black Wood Screws (2\")", "category": "Screws & Fasteners", "area": "Hardware", "qty": 6, "unit": "Packets", "rate": 380},
+            {"urdu": "کالے سکرو 6 x 1 1/2", "english": "Black Threaded Wood Screws (6 x 1-1/2\")", "category": "Screws & Fasteners", "area": "Hardware", "qty": 6, "unit": "Packets", "rate": 340},
+            {"urdu": "سکرو 1 x 17", "english": "Countersunk Wood Screws / Pins (1\" x 17)", "category": "Screws & Fasteners", "area": "Hardware", "qty": 3, "unit": "Boxes", "rate": 280},
+            {"urdu": "کیل 2 x 15 TP", "english": "TP Wire / Finishing Pins (2\" x 15 Gauge)", "category": "Nails & Pins", "area": "Hardware", "qty": 6, "unit": "Boxes", "rate": 320},
+            {"urdu": "17 x 1 1/2 نمبر TP", "english": "TP Finish Nails / Panel Pins (1.5\" x 17 Gauge)", "category": "Nails & Pins", "area": "Hardware", "qty": 6, "unit": "Boxes", "rate": 300},
+            {"urdu": "سٹیل کیل باریک 1\"", "english": "Fine Hardened Concrete / Steel Nails (1\")", "category": "Nails & Pins", "area": "Hardware", "qty": 3, "unit": "Boxes", "rate": 260},
+            {"urdu": "سٹیل کیل 3/4\"", "english": "Hardened Steel Nails (3/4\")", "category": "Nails & Pins", "area": "Hardware", "qty": 3, "unit": "Boxes", "rate": 240},
+            {"urdu": "سٹیل کیل 2\"", "english": "Heavy Hardened Steel Nails (2\")", "category": "Nails & Pins", "area": "Hardware", "qty": 6, "unit": "Boxes", "rate": 320},
+            {"urdu": "سٹیل کیل 2 1/2\"", "english": "Concrete / Hardened Steel Nails (2.5\")", "category": "Nails & Pins", "area": "Hardware", "qty": 6, "unit": "Boxes", "rate": 360},
+            {"urdu": "راد / راول کیل 2\"", "english": "Fluted Anchor / Rod Hardened Steel Nails (2\")", "category": "Nails & Pins", "area": "Hardware", "qty": 3, "unit": "Boxes", "rate": 350},
+            {"urdu": "3/4 x 20 TP", "english": "TP Wire Panel Pins (3/4\" x 20 Gauge)", "category": "Nails & Pins", "area": "Hardware", "qty": 4, "unit": "Boxes", "rate": 250},
+            {"urdu": "سمد بونڈ سلوشن 1 1/2 کلو", "english": "Samad Bond Synthetic Rubber Contact Adhesive (1.5 Kg Tin)", "category": "Adhesives & Tapes", "area": "Hardware", "qty": 3, "unit": "Tins", "rate": 1750},
+            {"urdu": "فوم ٹیپ رول", "english": "Double-Sided High-Bond Acrylic Foam Tape Roll", "category": "Adhesives & Tapes", "area": "Hardware", "qty": 1, "unit": "Roll", "rate": 450},
+            {"urdu": "گز 3 x 10", "english": "Aluminum / PVC Gaz Trim Profile (Size 3 x 10)", "category": "Trims & Lipping", "area": "Hardware", "qty": 1, "unit": "Box", "rate": 1100},
+            {"urdu": "3D قبضہ فل راؤنڈ", "english": "3D Full Overlay Hydraulic Soft-Close Cabinet Hinges", "category": "Hardware & Hinges", "area": "Hardware", "qty": 30, "unit": "Pcs", "rate": 300}
+        ];
+
+        function renderTable(dataToRender = items) {
+            const tbody = document.getElementById("table-body");
+            tbody.innerHTML = "";
+            let grandTotal = 0;
+            let sheetsCost = 0;
+            let hwCost = 0;
+
+            dataToRender.forEach((item, index) => {
+                const total = item.qty * item.rate;
+                grandTotal += total;
+
+                if (item.category === "Sheets & Boards") sheetsCost += total;
+                else hwCost += total;
+
+                const tr = document.createElement("tr");
+                tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
+                tr.innerHTML = `
+                    <td class="py-2.5 px-4 text-center font-bold text-slate-400">${index + 1}</td>
+                    <td class="py-2.5 px-4 text-right urdu font-semibold text-slate-900">${item.urdu}</td>
+                    <td class="py-2.5 px-4 font-medium text-slate-800">${item.english}</td>
+                    <td class="py-2.5 px-4 text-center"><span class="bg-blue-50 text-blue-700 text-xs px-2.5 py-1 rounded-full font-semibold">${item.area}</span></td>
+                    <td class="py-2.5 px-4 text-center text-xs text-slate-500">${item.category}</td>
+                    <td class="py-2.5 px-4 text-center font-bold text-slate-900">${item.qty}</td>
+                    <td class="py-2.5 px-4 text-center text-xs text-slate-500">${item.unit}</td>
+                    <td class="py-2.5 px-4 text-right text-slate-700">₨ ${item.rate.toLocaleString()}</td>
+                    <td class="py-2.5 px-4 text-right font-bold text-emerald-600">₨ ${total.toLocaleString()}</td>
+                    <td class="py-2.5 px-4 text-center">
+                        <button onclick="deleteItem(${index})" class="text-red-500 hover:text-red-700 p-1 font-bold">&times;</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById("table-grand-total").innerText = `₨ ${grandTotal.toLocaleString()}`;
+            document.getElementById("metric-grand-total").innerText = `₨ ${grandTotal.toLocaleString()}`;
+            document.getElementById("metric-total-items").innerText = `${dataToRender.length}`;
+            document.getElementById("metric-sheets-cost").innerText = `₨ ${sheetsCost.toLocaleString()}`;
+            document.getElementById("metric-hw-cost").innerText = `₨ ${hwCost.toLocaleString()}`;
+        }
+
+        function filterItems() {
+            const query = document.getElementById("search-input").value.toLowerCase();
+            const area = document.getElementById("area-select").value;
+
+            const filtered = items.filter(item => {
+                const matchesQuery = item.urdu.toLowerCase().includes(query) || item.english.toLowerCase().includes(query);
+                const matchesArea = area === "ALL" || item.area === area;
+                return matchesQuery && matchesArea;
+            });
+
+            renderTable(filtered);
+        }
+
+        function deleteItem(index) {
+            items.splice(index, 1);
+            filterItems();
+        }
+
+        function openModal() {
+            document.getElementById("item-modal").classList.remove("hidden");
+        }
+
+        function closeModal() {
+            document.getElementById("item-modal").classList.add("hidden");
+        }
+
+        function addItemFromModal() {
+            const urdu = document.getElementById("modal-urdu").value || "نئی چیز";
+            const eng = document.getElementById("modal-eng").value || "Custom Item";
+            const area = document.getElementById("modal-area").value;
+            const cat = document.getElementById("modal-cat").value;
+            const qty = parseInt(document.getElementById("modal-qty").value) || 1;
+            const unit = document.getElementById("modal-unit").value;
+            const rate = parseInt(document.getElementById("modal-rate").value) || 1000;
+
+            items.push({ urdu, english: eng, area, category: cat, qty, unit, rate });
+            closeModal();
+            filterItems();
+        }
+
+        function exportCSV() {
+            let csv = "Sr,Urdu_Text,English_Description,Area,Category,Quantity,Unit,Rate_PKR,Total_PKR\n";
+            items.forEach((item, i) => {
+                csv += `"${i+1}","${item.urdu}","${item.english}","${item.area}","${item.category}","${item.qty}","${item.unit}","${item.rate}","${item.qty*item.rate}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "Carpentry_Woodwork_Hardware_Estimate.csv";
+            link.click();
+        }
+
+        // Initialize on load
+        renderTable();
+    </script>
+</body>
+</html>
